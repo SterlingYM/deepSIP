@@ -525,14 +525,17 @@ def stochastic_predict(network, X, mcnum = 75, sigmoid = False, seed = None,
         # do predictions one at a time make reproducible regardless of order
         predictions = np.zeros((mcnum, len(X), 1))
         for i, XX in enumerate(X):
-            if type(seed) is int:
-                reset_state(seed = seed)
-            # reshape for network input and repeat in mcnum times
-            XX = XX.reshape(1, 1, XX.size()[-1]).repeat(mcnum, 1, 1)
-            pred = network(XX)
-            if sigmoid:
-                pred = torch.sigmoid(pred)
-            predictions[:,i,:] = scaler.inverse_transform(torch2numpy(pred))
+            try: 
+                if type(seed) is int:
+                    reset_state(seed = seed)
+                # reshape for network input and repeat in mcnum times
+                XX = XX.reshape(1, 1, XX.size()[-1]).repeat(mcnum, 1, 1)
+                pred = network(XX)
+                if sigmoid:
+                    pred = torch.sigmoid(pred)
+                predictions[:,i,:] = scaler.inverse_transform(torch2numpy(pred))
+            except Exception:
+                predictions[:,i,:] = np.nan
     return predictions.mean(axis = 0), predictions.std(axis = 0)
 
 class WrappedModel(nn.Module):

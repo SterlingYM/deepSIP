@@ -88,37 +88,40 @@ class Spectrum:
 
     def _process(self, wave, flux):
         '''internal method for processing'''
+        try:
+            # smooth spectrum
+            angstroms_per_pix = np.abs(np.mean(wave[1:] - wave[:-1]))
+            signal_window_pix = int(np.ceil( (self.signal_window_angstroms / \
+                                              angstroms_per_pix) / 2) * 2 - 1)
+            flux = utils.smooth(flux, signal_window_pix,
+                                self.signal_smoothing_order)
 
-        # smooth spectrum
-        angstroms_per_pix = np.abs(np.mean(wave[1:] - wave[:-1]))
-        signal_window_pix = int(np.ceil( (self.signal_window_angstroms / \
-                                          angstroms_per_pix) / 2) * 2 - 1)
-        flux = utils.smooth(flux, signal_window_pix,
-                            self.signal_smoothing_order)
+            # get continuum using similar method
+            continuum_window_pix = int(np.ceil( (self.continuum_window_angstroms / \
+                                                 angstroms_per_pix) / 2) * 2 - 1)
+            if continuum_window_pix > len(flux):
+                continuum_window_pix = int(np.ceil( (len(flux) / 1.4) / 2) * 2 - 1)
+            continuum = utils.get_continuum(flux, continuum_window_pix,
+                                            self.continuum_smoothing_order)
 
-        # get continuum using similar method
-        continuum_window_pix = int(np.ceil( (self.continuum_window_angstroms / \
-                                             angstroms_per_pix) / 2) * 2 - 1)
-        if continuum_window_pix > len(flux):
-            continuum_window_pix = int(np.ceil( (len(flux) / 1.4) / 2) * 2 - 1)
-        continuum = utils.get_continuum(flux, continuum_window_pix,
-                                        self.continuum_smoothing_order)
+            # subtract continuum
+            flux -= continuum
 
-        # subtract continuum
-        flux -= continuum
+            # log bin
+            wave, flux, valid_mask = utils.log_bin(wave, flux,
+                                                   self.lwave_bounds,
+                                                   self.lwave_n_bins)
 
-        # log bin
-        wave, flux, valid_mask = utils.log_bin(wave, flux,
-                                               self.lwave_bounds,
-                                               self.lwave_n_bins)
+            # scaling and apodization
+            flux[valid_mask] = utils.normalize_flux(flux[valid_mask])
+            flux[valid_mask] = utils.apodize(flux[valid_mask], self.apodize_end_pct)
 
-        # scaling and apodization
-        flux[valid_mask] = utils.normalize_flux(flux[valid_mask])
-        flux[valid_mask] = utils.apodize(flux[valid_mask], self.apodize_end_pct)
-
-        # offset and return
-        flux += 0.5
-        return flux
+            # offset and return
+            flux += 0.5
+            return flux
+        except Exception:
+            print('warning: preprocess failed while handling ' + self.filename)
+            return None
 
     def process(self):
         '''
@@ -254,7 +257,13 @@ class EvaluationSpectra:
 
     def _process(self, status):
         '''internal method for processing'''
+        
         fn = lambda spec: pd.Series(spec.process())
+#         def fn(spec):
+#             try:
+#                 processed_spec = pd.Series(spec.process())
+#             except Exception:
+#                 processed_spec = pd.Series([np.nan])
         if status:
             X = self.spectra['Spectrum'].progress_apply(fn)
         else:
