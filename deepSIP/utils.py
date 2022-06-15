@@ -4,7 +4,7 @@ import json
 import random
 import numpy as np
 from scipy.signal import savgol_filter
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 import torch
@@ -31,10 +31,14 @@ def load_txt_spectrum(filename):
     flux : np.array
            fluxes on wavelength grid
     '''
-    data = pd.read_csv(filename, delim_whitespace = True,
-                       header = None, comment = '#')
-    wave = data.loc[:, 0].values
-    flux = data.loc[:, 1].values
+    try:
+        data = pd.read_csv(filename, delim_whitespace = True,
+                           header = None, comment = '#')
+        wave = data.loc[:, 0].values
+        flux = data.loc[:, 1].values
+    except Exception as e:
+        print('Provided file '+filename+' is incompatible.')
+        raise e
     return wave, flux
 
 def savenet(network, filename):
